@@ -6,10 +6,29 @@ const authRoutes = require("../auth/login");
 const OpenAI = require("openai");
 
 const app = express();
-app.use(cors());
 app.use(express.json());
+app.use(cors({
+    origin: "http://localhost:3000",
+    credentials: true,
+}));
 
 app.use("/auth", authRoutes);
+const mongoose = require("mongoose");
+
+mongoose
+    .connect(process.env.MONGODB_URL, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+    })
+    .then(() => {
+        console.log("✅ MongoDB connected successfully");
+        app.listen(process.env.PORT || 5000, () => {
+            console.log("🚀 Server started on port", process.env.PORT || 5000);
+        });
+    })
+    .catch((err) => {
+        console.error("❌ MongoDB connection error:", err.message);
+    });
 
 // AI ROUTES
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "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";
@@ -19,7 +38,8 @@ const client = new OpenAI({
 });
 
 app.post("/ai/summarize", async (req, res) => {
-    const { text } = req.body;
+    console.log("Received Summarization Request:", req.body); // Debugging
+    const { text } = JSON.parse(req.body);
 
     if (!text) {
         return res.status(400).json({ error: "Text input is required for summarization." });
@@ -41,7 +61,7 @@ app.post("/ai/summarize", async (req, res) => {
 });
 
 app.post("/ai/suggestreply", async (req, res) => {
-    const { text, sender, recipientId, reciever } = req.body;
+    const { text, sender, recipientId, reciever } = JSON.parse(req.body);
 
     if (!text) {
         return res.status(400).json({ error: "Text input is required for reply suggestions." });

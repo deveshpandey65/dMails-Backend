@@ -1,5 +1,5 @@
 // const express= require('express');
-// const app=require('./connection/server')
+// const app=require('./connection/lserver')
 // const db= require('./connection/db')
 // const User = require('./models/user');
 // const authRoutes = require("./auth/login"); 

@@ -11,9 +11,11 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID); // Use env variab
 // Google OAuth Login API
 router.post("/google-login", async (req, res) => {
     try {
-        console.log("Google Login Attempt");
+        console.log("Google Login Attempt:", JSON.parse(req.body)); // Debugging
 
-        const { token, accessToken, refreshToken } = req.body;
+        const { token, accessToken, refreshToken } = JSON.parse(req.body);
+        console.log("token:", token, "accesstoken",accessToken,"refreshtoken", refreshToken);
+        console.log("Received Access Token:", token); // Debugging
         if (!token) {
             return res.status(400).json({ message: "Google token is missing" });
         }
@@ -178,6 +180,7 @@ router.post("/emails/markAsRead", async (req, res) => {
 
         let decoded;
         try {
+            console.log(token)
             decoded = jwt.verify(token, process.env.JWT_SECRET);
         } catch (err) {
             return res.status(403).json({ error: "Invalid or expired JWT token" });
@@ -215,7 +218,7 @@ router.post("/emails/markAsRead", async (req, res) => {
         const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
         // ✅ Get email IDs from request body
-        const { emailIds } = req.body;
+        const { emailIds } = JSON.parse(req.body);
         if (!emailIds || !Array.isArray(emailIds) || emailIds.length === 0) {
             return res.status(400).json({ error: "Invalid request, provide an array of email IDs" });
         }
