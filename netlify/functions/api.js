@@ -1,4 +1,4 @@
-const app=require('../../connection/server')
+const {app}=require('../../connection/server')
 const authRoutes = require("../../auth/login"); 
 const cors = require('cors')
 app.use(cors() )
