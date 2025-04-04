@@ -6,3 +6,5 @@
   from = "/*"
   to = "/.netlify/functions/api"
   status = 200
+[functions]
+directory = "netlify/functions"

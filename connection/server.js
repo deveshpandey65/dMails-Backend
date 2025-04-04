@@ -1,15 +1,17 @@
+// netlify/functions/api.js
 const express = require('express');
-require("dotenv").config();
-const cors = require("cors");
 const serverless = require('serverless-http');
+const cors = require('cors');
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 
-// Define a simple route for testing
-app.get('/', (req, res) => {
-    res.json({ message: "Server is running!" });
+// Add routes
+app.get('/api/hello', (req, res) => {
+    res.json({ message: 'Hello from Express on Netlify!' });
 });
 
+// Export only the handler
 module.exports.handler = serverless(app);
