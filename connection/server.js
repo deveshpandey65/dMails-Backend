@@ -1,15 +1,15 @@
 const express = require('express');
-const app = express();
 require("dotenv").config();
-const http = require("http");
 const cors = require("cors");
 const serverless = require('serverless-http');
-const port = process.env.PORT
 
-app.use(express.json()); 
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-const server = http.createServer(app);
+// Define a simple route for testing
+app.get('/', (req, res) => {
+    res.json({ message: "Server is running!" });
+});
 
-module.exports = { app, server };
-
-module.exports.handler = serverless(app, { callbackWaitsForEmptyEventLoop: false });
+module.exports.handler = serverless(app);
