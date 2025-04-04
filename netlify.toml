@@ -2,9 +2,10 @@
   command = "npm install"
   functions = "netlify/functions"
 
+[functions]
+  directory = "netlify/functions"
+
 [[redirects]]
   from = "/*"
   to = "/.netlify/functions/api"
   status = 200
-[functions]
-directory = "netlify/functions"
