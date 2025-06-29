@@ -4,6 +4,7 @@ const cors = require("cors");
 
 const authRoutes = require("../auth/login");
 const OpenAI = require("openai");
+app.use(express.json());
 
 const app = express();
 app.use(express.json());
