@@ -4,7 +4,7 @@ const cors = require("cors");
 
 const authRoutes = require("../auth/login");
 const OpenAI = require("openai");
-app.use(express.json());
+
 
 const app = express();
 app.use(express.json());
@@ -33,7 +33,7 @@ mongoose
 
 const Together = require("together-ai");
 const together = new Together();
-
+app.use(express.json());
 app.post("/ai/summarize", async (req, res) => {
     const { text } = req.body;
     console.log("Received text for summarization:", text);
