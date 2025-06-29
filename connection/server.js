@@ -13,19 +13,9 @@ const allowedOrigins = [
     "https://dmails.vercel.app",       
 ];
 
-app.use(
-    cors({
-        origin: function (origin, callback) {
-            if (!origin || allowedOrigins.includes(origin)) {
-                callback(null, true);
-            } else {
-                callback(new Error("Not allowed by CORS"));
-            }
-        },
-        credentials: true, // Allow cookies / headers like Authorization
-    })
-  );
-  
+app.use(cors({
+    origin: "*",       
+}));
 
 app.use("/auth", authRoutes);
 const mongoose = require("mongoose");
