@@ -30,54 +30,61 @@ mongoose
         console.error("❌ MongoDB connection error:", err.message);
     });
 
-// AI ROUTES
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "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";
-const client = new OpenAI({
-    apiKey: OPENROUTER_API_KEY,
-    baseURL: "https://openrouter.ai/api/v1",
-});
+const Together = require("together-ai");
+const together = new Together();
 
 app.post("/ai/summarize", async (req, res) => {
-    console.log("Received Summarization Request:", req.body); // Debugging
-    const { text } = JSON.parse(req.body);
+    const { text } = req.body;
+    console.log("Received text for summarization:", text);
 
     if (!text) {
         return res.status(400).json({ error: "Text input is required for summarization." });
     }
 
     try {
-        const completion = await client.chat.completions.create({
-            model: "openchat/openchat-7b:free",
-            messages: [{ role: "user", content: `Summarize this email in maximum 12 words:\n${text}` }],
+        const response = await together.chat.completions.create({
+            model: "deepseek-ai/DeepSeek-V3", // ✅ Together-supported model
+            messages: [
+                {
+                    role: "user",
+                    content: `Summarize the following email in maximum 12 words. 
+    Keep it simple, clear, and to the point.  :\n${text}`,
+                },
+            ],
             temperature: 0.7,
             max_tokens: 100,
         });
 
-        res.json({ summary: completion.choices[0].message.content });
+        const summary = response.choices[0].message.content;
+        res.json({ summary });
     } catch (error) {
-        console.error("Summarization Error:", error);
+        console.error("Together AI Summarization Error:", error);
         res.status(500).json({ error: "Failed to summarize email." });
     }
 });
 
+
 app.post("/ai/suggestreply", async (req, res) => {
-    const { text, sender, recipientId, reciever } = JSON.parse(req.body);
+    const { text, sender, recipientId, reciever } = req.body;
 
     if (!text) {
         return res.status(400).json({ error: "Text input is required for reply suggestions." });
     }
 
     try {
-        const completion = await client.chat.completions.create({
-            model: "openchat/openchat-7b:free",
-            messages: [{
-                role: "user", content: `Generate three possible replies just give the message without subject, separate each reply with ---:\n\n"${text}"\n\nSender: ${sender}\nReceiver: ${reciever}\nReceiver ID: ${recipientId}`
-            }],
+        const response = await together.chat.completions.create({
+            model: "deepseek-ai/DeepSeek-V3", // Or any Together-supported chat model
+            messages: [
+                {
+                    role: "user",
+                    content: `Generate three possible replies. Just give the message (no subject), and separate each reply with "---":\n\n"${text}"\n\nSender: ${sender}\nReceiver: ${reciever}\nReceiver ID: ${recipientId}`,
+                },
+            ],
             temperature: 0.7,
             max_tokens: 200,
         });
 
-        const replyText = completion.choices[0].message.content;
+        const replyText = response.choices[0].message.content;
         const replyBlocks = replyText.split("---");
         const structuredReplies = replyBlocks.map(reply => ({
             subject: "No Subject",
@@ -87,9 +94,8 @@ app.post("/ai/suggestreply", async (req, res) => {
         res.json({ replies: structuredReplies.slice(0, 3) });
 
     } catch (error) {
-        console.error("Reply Suggestion Error:", error);
+        console.error("Together AI Reply Suggestion Error:", error);
         res.status(500).json({ error: "Failed to generate suggested replies." });
     }
-});
-
+    });
 module.exports = { app };
