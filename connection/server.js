@@ -33,7 +33,11 @@ mongoose
 
 const Together = require("together-ai");
 const together = new Together();
+
+
+
 app.use(express.json());
+
 app.post("/ai/summarize", async (req, res) => {
     const { text } = req.body;
     console.log("Received text for summarization:", text);
@@ -44,12 +48,11 @@ app.post("/ai/summarize", async (req, res) => {
 
     try {
         const response = await together.chat.completions.create({
-            model: "deepseek-ai/DeepSeek-V3", // ✅ Together-supported model
+            model: "deepseek-ai/DeepSeek-V3",
             messages: [
                 {
                     role: "user",
-                    content: `Summarize the following email in maximum 12 words. 
-    Keep it simple, clear, and to the point.  :\n${text}`,
+                    content: `Summarize the following email in maximum 12 words.\nKeep it simple, clear, and to the point:\n${text}`,
                 },
             ],
             temperature: 0.7,
@@ -63,6 +66,7 @@ app.post("/ai/summarize", async (req, res) => {
         res.status(500).json({ error: "Failed to summarize email." });
     }
 });
+
 
 
 app.post("/ai/suggestreply", async (req, res) => {
