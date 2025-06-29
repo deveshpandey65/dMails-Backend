@@ -6,16 +6,15 @@ const { google } = require("googleapis");
 require("dotenv").config();
 
 const router = express.Router();
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID); // Use env variable
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Google OAuth Login API
 router.post("/google-login", async (req, res) => {
+    console.log("Google Login Attempt");
     try {
-        console.log("Google Login Attempt:", JSON.parse(req.body)); // Debugging
+        console.log("Google Login Attempt");
 
-        const { token, accessToken, refreshToken } = JSON.parse(req.body);
-        console.log("token:", token, "accesstoken",accessToken,"refreshtoken", refreshToken);
-        console.log("Received Access Token:", token); // Debugging
+        const { token, accessToken, refreshToken } = req.body;
         if (!token) {
             return res.status(400).json({ message: "Google token is missing" });
         }
@@ -25,12 +24,12 @@ router.post("/google-login", async (req, res) => {
         // Verify Google ID token
         const ticket = await client.verifyIdToken({
             idToken: token,
-            audience: process.env.GOOGLE_CLIENT_ID, // Use environment variable
+            audience: process.env.GOOGLE_CLIENT_ID, 
         });
 
         const payload = ticket.getPayload();
         console.log("Google Payload:", payload); // Debugging
-        console.log("Access Token", accessToken )
+        console.log("Access Token", accessToken)
         const { sub, name, email, picture } = payload; // `picture` instead of `profilePic`
 
         // Check if user exists
@@ -43,7 +42,7 @@ router.post("/google-login", async (req, res) => {
                 email,
                 accessToken,
                 refreshToken,
-                profilePic: picture, 
+                profilePic: picture,
 
             });
             await user.save();
@@ -52,7 +51,7 @@ router.post("/google-login", async (req, res) => {
         user.refreshToken = refreshToken;
         await user.save();
         console.log(user)
-        
+
 
 
         // Generate JWT token
@@ -69,15 +68,20 @@ router.post("/google-login", async (req, res) => {
 
 router.post("/logout", (req, res) => {
     res.json({ message: "Logged out successfully" });
-});
+})
 
 
 router.get("/emails", async (req, res) => {
     try {
-        const token = req.headers.authorization?.split(" ")[1]?.replace(/^"|"$/g, '');
+        console.log("📨 Fetching Emails...");
+
+        const authHeader = req.headers.authorization;
+        const token = authHeader?.split(" ")[1]?.replace(/^"|"$/g, "");
+
         if (!token) {
             return res.status(401).json({ error: "Unauthorized, token missing" });
         }
+        console.log("jwt:", token );
 
         let decoded;
         try {
@@ -85,11 +89,13 @@ router.get("/emails", async (req, res) => {
         } catch (err) {
             return res.status(403).json({ error: "Invalid or expired JWT token" });
         }
+        console.log( "decoded:", decoded );
 
         const user = await User.findById(decoded.id);
         if (!user || !user.accessToken || !user.refreshToken) {
             return res.status(401).json({ error: "Unauthorized, missing Google access or refresh token" });
         }
+        console.log("user:", user);
 
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
@@ -102,15 +108,16 @@ router.get("/emails", async (req, res) => {
             refresh_token: user.refreshToken,
         });
 
-        // Refresh access token if expired
+        // 🔁 Refresh access token
         try {
-            const { token } = await oauth2Client.getAccessToken();
-            if (!token) {
+            const accessTokenResponse = await oauth2Client.getAccessToken();
+            if (!accessTokenResponse?.token) {
                 throw new Error("Failed to refresh token");
             }
-            user.accessToken = token;
+
+            user.accessToken = accessTokenResponse.token;
             await user.save();
-            oauth2Client.setCredentials({ access_token: token });
+            oauth2Client.setCredentials({ access_token: accessTokenResponse.token });
         } catch (refreshError) {
             console.error("❌ Google Token Refresh Error:", refreshError);
             return res.status(401).json({ error: "Google access token expired. Please re-login." });
@@ -118,52 +125,49 @@ router.get("/emails", async (req, res) => {
 
         const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
-        // Get the date 7 days ago
+        // 🗓 Get emails from last 7 days
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         const formattedDate = sevenDaysAgo.toISOString().split("T")[0]; // YYYY-MM-DD
 
-        // Fetch all emails from the last 7 days (read & unread)
-        const response = await gmail.users.messages.list({
+        const { data: listData } = await gmail.users.messages.list({
             userId: "me",
-            q: `after:${formattedDate}`, // Fetch all emails
+            q: `after:${formattedDate}`,
         });
 
-        const messages = response.data.messages || [];
+        const messages = listData.messages || [];
 
         const categorizedEmails = {
             unread: [],
             read: [],
         };
 
-        const emails = await Promise.all(
-            messages.map(async (msg) => {
-                const email = await gmail.users.messages.get({ userId: "me", id: msg.id });
+        for (const msg of messages) {
+            const { data: fullEmail } = await gmail.users.messages.get({ userId: "me", id: msg.id });
 
-                // Extract sender email
-                const headers = email.data.payload.headers;
-                const fromHeader = headers.find(header => header.name === "From");
-                const senderEmail = fromHeader ? fromHeader.value.match(/<([^>]+)>/)?.[1] || fromHeader.value : "Unknown";
+            const headers = fullEmail.payload.headers || [];
+            const fromHeader = headers.find(header => header.name === "From");
+            const senderEmail = fromHeader
+                ? fromHeader.value.match(/<([^>]+)>/)?.[1] || fromHeader.value
+                : "Unknown";
 
-                // ✅ Check if email is read/unread
-                const isUnread = email.data.labelIds.includes("UNREAD");
+            const isUnread = fullEmail.labelIds?.includes("UNREAD");
 
-                const emailData = {
-                    id: email.data.id,
-                    sender: senderEmail,
-                    snippet: email.data.snippet,
-                    body: email?.data?.body || "No content",
-                };
+            const emailData = {
+                id: fullEmail.id,
+                sender: senderEmail,
+                snippet: fullEmail.snippet,
+                body: fullEmail.payload?.body || "No content", // Better handled via MIME parsing
+            };
 
-                if (isUnread) {
-                    categorizedEmails.unread.push(emailData);
-                } else {
-                    categorizedEmails.read.push(emailData);
-                }
-            })
-        );
+            if (isUnread) {
+                categorizedEmails.unread.push(emailData);
+            } else {
+                categorizedEmails.read.push(emailData);
+            }
+        }
 
-        res.json(categorizedEmails);
+        return res.json(categorizedEmails);
     } catch (error) {
         console.error("❌ Failed to fetch emails:", error);
         res.status(500).json({ error: "Failed to fetch emails", details: error.message });
@@ -218,7 +222,7 @@ router.post("/emails/markAsRead", async (req, res) => {
         const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
         // ✅ Get email IDs from request body
-        const { emailIds } = JSON.parse(req.body);
+        const { emailIds } = req.body;
         if (!emailIds || !Array.isArray(emailIds) || emailIds.length === 0) {
             return res.status(400).json({ error: "Invalid request, provide an array of email IDs" });
         }
