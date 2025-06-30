@@ -3,9 +3,9 @@ require("dotenv").config();
 const cors = require("cors");
 
 const authRoutes = require("../auth/login");
-const OpenAI = require("openai");
 
-
+const connectDB= require("./db");
+connectDB();
 const app = express();
 app.use(express.json());
 const allowedOrigins = [
@@ -19,7 +19,6 @@ app.use(cors({
 
 app.use("/auth", authRoutes);
 // const mongoose = require("mongoose");
-
 // mongoose
 //     .connect(process.env.MONGODB_URL, {
 //         useNewUrlParser: true,
@@ -43,7 +42,9 @@ const together = new Together();
 app.use(express.json());
 
 app.post("/ai/summarize", async (req, res) => {
-    const { text } = req.body;
+    const body = JSON.parse(req.body || "{}");
+
+    const { text } = body;
     console.log("Received text for summarization:", text);
 
     if (!text) {
@@ -74,7 +75,9 @@ app.post("/ai/summarize", async (req, res) => {
 
 
 app.post("/ai/suggestreply", async (req, res) => {
-    const { text, sender, recipientId, reciever } = req.body;
+    const body = JSON.parse(req.body || "{}");
+
+    const { text, sender, recipientId, reciever } = body;
 
     if (!text) {
         return res.status(400).json({ error: "Text input is required for reply suggestions." });

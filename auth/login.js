@@ -10,11 +10,15 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Google OAuth Login API
 router.post("/google-login", async (req, res) => {
-    console.log("Google Login Attempt");
+    console.log("Google Login Attempt 1");
     try {
-        console.log("Google Login Attempt");
-
-        const { token, accessToken, refreshToken } = req.body;
+        console.log("Google Login Attempt 2");
+        
+        const body = JSON.parse(req.body || "{}");
+        const { token, accessToken, refreshToken } =body;
+        console.log('Token', token)
+        console.log('Access Token', accessToken)
+        console.log('Refresh Token', refreshToken)
         if (!token) {
             return res.status(400).json({ message: "Google token is missing" });
         }
@@ -30,8 +34,7 @@ router.post("/google-login", async (req, res) => {
         const payload = ticket.getPayload();
         console.log("Google Payload:", payload); // Debugging
         console.log("Access Token", accessToken)
-        const { sub, name, email, picture } = payload; // `picture` instead of `profilePic`
-
+        const { sub, name, email, picture } = payload; 
         // Check if user exists
         let user = await User.findOne({ googleId: sub });
 
@@ -181,73 +184,92 @@ router.get("/emails", async (req, res) => {
 
 router.post("/emails/markAsRead", async (req, res) => {
     try {
-        const token = req.headers.authorization?.split(" ")[1]?.replace(/^"|"$/g, '');
+        console.log("📩 Marking emails as read...");
+
+        // ✅ Extract JWT from Authorization header
+        const token = req.headers.authorization?.split(" ")[1]?.replace(/^"|"$/g, "");
         if (!token) {
-            return res.status(401).json({ error: "Unauthorized, token missing" });
+            return res.status(401).json({ error: "Unauthorized: JWT token missing" });
         }
 
+        // ✅ Verify JWT token
         let decoded;
         try {
-            console.log(token)
             decoded = jwt.verify(token, process.env.JWT_SECRET);
         } catch (err) {
+            console.error("❌ JWT verification failed:", err.message);
             return res.status(403).json({ error: "Invalid or expired JWT token" });
         }
 
+        // ✅ Find user by decoded ID
         const user = await User.findById(decoded.id);
         if (!user || !user.accessToken || !user.refreshToken) {
-            return res.status(401).json({ error: "Unauthorized, missing Google access or refresh token" });
+            return res.status(401).json({ error: "Unauthorized: Missing Google access or refresh token" });
         }
 
+        // ✅ Set up OAuth2 client
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
             process.env.REDIRECT_URI
         );
+
         oauth2Client.setCredentials({
             access_token: user.accessToken,
             refresh_token: user.refreshToken,
         });
 
-        // ✅ Refresh access token if expired
+        // ✅ Try to refresh access token
         try {
-            const { token } = await oauth2Client.getAccessToken();
-            if (!token) {
-                throw new Error("Failed to refresh token");
+            const { token: newAccessToken } = await oauth2Client.getAccessToken();
+            if (!newAccessToken) {
+                throw new Error("Failed to refresh access token");
             }
-            user.accessToken = token;
+
+            // Update user's access token
+            user.accessToken = newAccessToken;
             await user.save();
-            oauth2Client.setCredentials({ access_token: token });
+            oauth2Client.setCredentials({ access_token: newAccessToken });
+
         } catch (refreshError) {
-            console.error("❌ Google Token Refresh Error:", refreshError);
-            return res.status(401).json({ error: "Google access token expired. Please re-login." });
+            console.error("❌ Google Token Refresh Error:", refreshError.message);
+            return res.status(401).json({ error: "Google token expired or invalid. Please re-login." });
         }
 
+        // ✅ Gmail API setup
         const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
-        // ✅ Get email IDs from request body
-        const { emailIds } = req.body;
-        if (!emailIds || !Array.isArray(emailIds) || emailIds.length === 0) {
-            return res.status(400).json({ error: "Invalid request, provide an array of email IDs" });
+        // ✅ Validate request body
+        const body = JSON.parse(req.body || "{}");
+        const { emailIds } = body;
+        console.log( emailIds );
+        if (!Array.isArray(emailIds) || emailIds.length === 0) {
+            return res.status(400).json({ error: "Invalid request: Provide a non-empty array of email IDs" });
         }
 
-        // ✅ Mark emails as read by removing "UNREAD" label
+        // ✅ Mark emails as read
+        console.log(emailIds)
         await Promise.all(
             emailIds.map(async (emailId) => {
                 await gmail.users.messages.modify({
                     userId: "me",
                     id: emailId,
                     requestBody: {
-                        removeLabelIds: ["UNREAD"], // ✅ Marks email as read
+                        removeLabelIds: ["UNREAD"],
                     },
                 });
             })
         );
 
+        console.log("✅ Emails marked as read:", emailIds.length);
         res.json({ message: "Emails marked as read successfully" });
+
     } catch (error) {
         console.error("❌ Failed to mark emails as read:", error);
-        res.status(500).json({ error: "Failed to mark emails as read", details: error.message });
+        res.status(500).json({
+            error: "Failed to mark emails as read",
+            details: error.message || "Unexpected error",
+        });
     }
 });
 
