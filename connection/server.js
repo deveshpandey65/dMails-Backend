@@ -8,10 +8,6 @@ const authRoutes = require("../auth/login");
 
 const app = express();
 app.use(express.json());
-const allowedOrigins = [
-    "http://localhost:3000",           
-    "https://dmails.vercel.app",       
-];
 
 app.use(cors({
     origin: "*",       
