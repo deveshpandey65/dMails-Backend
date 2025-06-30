@@ -3,18 +3,37 @@ require("dotenv").config();
 const cors = require("cors");
 
 const authRoutes = require("../auth/login");
-
+const OpenAI = require("openai");
 
 
 const app = express();
 app.use(express.json());
+const allowedOrigins = [
+    "http://localhost:3000",           
+    "https://dmails.vercel.app",       
+];
 
 app.use(cors({
     origin: "*",       
 }));
 
 app.use("/auth", authRoutes);
+// const mongoose = require("mongoose");
 
+// mongoose
+//     .connect(process.env.MONGODB_URL, {
+//         useNewUrlParser: true,
+//         useUnifiedTopology: true,
+//     })
+//     .then(() => {
+//         console.log("✅ MongoDB connected successfully");
+//         app.listen(process.env.PORT || 5000, () => {
+//             console.log("🚀 Server started on port", process.env.PORT || 5000);
+//         });
+//     })
+//     .catch((err) => {
+//         console.error("❌ MongoDB connection error:", err.message);
+//     });
 
 const Together = require("together-ai");
 const together = new Together();

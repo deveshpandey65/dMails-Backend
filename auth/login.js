@@ -81,7 +81,6 @@ router.get("/emails", async (req, res) => {
         if (!token) {
             return res.status(401).json({ error: "Unauthorized, token missing" });
         }
-        console.log("jwt:", token );
 
         let decoded;
         try {
@@ -89,13 +88,11 @@ router.get("/emails", async (req, res) => {
         } catch (err) {
             return res.status(403).json({ error: "Invalid or expired JWT token" });
         }
-        console.log( "decoded:", decoded );
 
         const user = await User.findById(decoded.id);
         if (!user || !user.accessToken || !user.refreshToken) {
             return res.status(401).json({ error: "Unauthorized, missing Google access or refresh token" });
         }
-        console.log("user:", user);
 
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
@@ -108,7 +105,7 @@ router.get("/emails", async (req, res) => {
             refresh_token: user.refreshToken,
         });
 
-        // 🔁 Refresh access token
+        // Refresh access token
         try {
             const accessTokenResponse = await oauth2Client.getAccessToken();
             if (!accessTokenResponse?.token) {
@@ -125,24 +122,20 @@ router.get("/emails", async (req, res) => {
 
         const gmail = google.gmail({ version: "v1", auth: oauth2Client });
 
-        // 🗓 Get emails from last 7 days
+        // Get recent 7 days' emails (limit results for performance)
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const formattedDate = sevenDaysAgo.toISOString().split("T")[0]; // YYYY-MM-DD
+        const formattedDate = sevenDaysAgo.toISOString().split("T")[0];
 
         const { data: listData } = await gmail.users.messages.list({
             userId: "me",
             q: `after:${formattedDate}`,
+            maxResults: 15, 
         });
 
         const messages = listData.messages || [];
 
-        const categorizedEmails = {
-            unread: [],
-            read: [],
-        };
-
-        for (const msg of messages) {
+        const emailPromises = messages.map(async (msg) => {
             const { data: fullEmail } = await gmail.users.messages.get({ userId: "me", id: msg.id });
 
             const headers = fullEmail.payload.headers || [];
@@ -157,15 +150,26 @@ router.get("/emails", async (req, res) => {
                 id: fullEmail.id,
                 sender: senderEmail,
                 snippet: fullEmail.snippet,
-                body: fullEmail.payload?.body || "No content", // Better handled via MIME parsing
+                body: fullEmail.payload?.body || "No content", // or parse MIME parts
             };
 
+            return { isUnread, emailData };
+        });
+
+        const emailResults = await Promise.all(emailPromises);
+
+        const categorizedEmails = {
+            unread: [],
+            read: [],
+        };
+
+        emailResults.forEach(({ isUnread, emailData }) => {
             if (isUnread) {
                 categorizedEmails.unread.push(emailData);
             } else {
                 categorizedEmails.read.push(emailData);
             }
-        }
+        });
 
         return res.json(categorizedEmails);
     } catch (error) {

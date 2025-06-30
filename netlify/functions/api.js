@@ -1,4 +1,4 @@
-const express = require("express"); // ✅ This was missing
+const express = require("express"); 
 const { app } = require("../../connection/server");
 const serverless = require("serverless-http");
 const cors = require("cors");
